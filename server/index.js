@@ -1,23 +1,33 @@
+// Initializing imports
 const app = require("express")();
 const server = require("http").createServer(app);
 const io = require("socket.io")(server);
+const bodyParser = require("body-parser");
+const dbConfig = require("./config/dbConfig");
+const bookshelf = require("bookshelf")(require("knex")(dbConfig));
 
-let inData = 0;
-let outData = 0;
+app.use(bodyParser.urlencoded({ extended: true }));
 
-app.get("/increaseInData", (req, res) => {
-  inData++;
-  io.emit("inData", inData);
-  res.send("Increase InData");
+// Initializing models
+
+const InOut = bookshelf.Model.extend({
+  tableName: "in_out",
+  requireFetch: false
+});
+const Guest = bookshelf.Model.extend({
+  tableName: "guest",
+  requireFetch: false
+});
+const UnAuth = bookshelf.Model.extend({
+  tableName: "unauth",
+  requireFetch: false
+});
+const Resident = bookshelf.Model.extend({
+  tableName: "user",
+  requireFetch: false
 });
 
-app.get("/increaseOutData", (req, res) => {
-  outData++;
-  io.emit("outData", outData);
-
-  res.send("Increase OutData");
-});
-
+// Connecting a user through socket
 io.on("connection", socket => {
   console.log("a user connected");
   socket.on("disconnect", () => {
