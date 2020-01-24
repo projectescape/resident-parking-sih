@@ -74,7 +74,8 @@ const inOutSchema = new mongoose.Schema({
     default: null
   },
   in_time: { type: Date, default: Date.now },
-  out_time: { type: Date, default: null }
+  out_time: { type: Date, default: null },
+  name: String
 });
 
 const InOut = mongoose.model("InOut", inOutSchema);
@@ -91,9 +92,10 @@ app.post("/security/in", async (req, res) => {
   if (resident) {
     const inOut = await InOut.create({
       resident_id: resident._id,
-      vehicle
+      vehicle,
+      name: resident.name
     });
-    io.emit("inData", inOut);
+    io.emit("inData", { ...inOut._doc });
   } else {
     //! Check if guest
 
@@ -101,9 +103,10 @@ app.post("/security/in", async (req, res) => {
     if (guest) {
       const inOut = await InOut.create({
         guest_id: guest._id,
-        vehicle
+        vehicle,
+        name: guest.name
       });
-      io.emit("inData", inOut);
+      io.emit("inData", { ...inOut._doc });
     } else {
       //TODO Handle resident
 
@@ -117,11 +120,12 @@ app.post("/security/out", async (req, res) => {
   const { vehicle } = req.body;
 
   //! Upadate Out time
-  const inOut = await InOut.updateOne(
+  const inOut = await InOut.findOneAndUpdate(
     { vehicle, out_time: null },
     { out_time: Date.now() }
   );
   console.log(inOut);
+  io.emit("outData", { ...inOut._doc, out_time: new Date(Date.now()) });
   res.send("Succesfull");
 });
 
