@@ -1,12 +1,19 @@
 // Initializing imports
 const app = require("express")();
 const server = require("http").createServer(app);
+var cors = require("cors");
 const io = require("socket.io")(server);
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
 const dbConfig = require("./config/dbConfig");
+const { Expo } = require("expo-server-sdk");
+
+let expo = new Expo();
+let pushToken = null;
 
 mongoose.connect(dbConfig.uri);
+
+app.use(cors());
 
 app.use(bodyParser.json());
 app.use(
@@ -14,6 +21,67 @@ app.use(
     extended: true
   })
 );
+
+// Initialize parking graph
+import iddfs from "iddfs";
+const A = { name: "A", available: true };
+const B = { name: "B", available: true };
+const C = { name: "C", available: true };
+const D = { name: "D", available: true };
+const E = { name: "E", available: true };
+const F = { name: "F", available: true };
+const G = { name: "G", available: true };
+const H = { name: "H", available: true };
+const I = { name: "I", available: true };
+const J = { name: "J", available: true };
+const K = { name: "K", available: true };
+const L = { name: "L", available: true };
+const M = { name: "M", available: true };
+const N = { name: "N", available: true };
+const O = { name: "O", available: true };
+const P = { name: "P", available: true };
+const Q = { name: "Q", available: true };
+const R = { name: "R", available: true };
+const S = { name: "S", available: false };
+const T = { name: "T", available: false };
+
+const edges = {
+  A: [B],
+  B: [A, C, F],
+  C: [B, D, Q],
+  D: [C, F, E, G],
+  E: [D, P],
+  F: [B, M, H, D],
+  G: [D, I],
+  H: [F, K, J],
+  I: [G, J],
+  J: [I, H],
+  K: [H, O, L],
+  L: [K],
+  M: [F, N],
+  N: [M, S],
+  O: [K, R],
+  P: [E],
+  Q: [C],
+  R: [O],
+  S: [N, T],
+  T: [S]
+};
+
+console.log(iddfs);
+
+const findNode = async () => {
+  const found = await iddfs({
+    initialNode: T,
+    isGoal: node => node.available === true,
+    expand: node => edges[node.name],
+    extractId: node => node
+  });
+
+  console.log(found);
+};
+
+findNode();
 
 // Initializing models
 
@@ -27,18 +95,6 @@ const residentSchema = new mongoose.Schema({
 });
 
 const Resident = mongoose.model("Resident", residentSchema);
-
-// Resident.create(
-//   {
-//     name: "Aniket",
-//     address: "D415",
-//     phone: 8708257683,
-//     vehicle: "HR10AE1090"
-//   },
-//   (e, newRes) => {
-//     console.log(newRes);
-//   }
-// );
 
 const guestSchema = new mongoose.Schema({
   name: String,
@@ -84,6 +140,7 @@ app.get("/test", (req, res) => {
   res.send("Connected");
 });
 app.post("/security/in", async (req, res) => {
+  console.log(req.body);
   const { vehicle } = req.body;
 
   const resident = await Resident.findOne({ vehicle });
@@ -108,14 +165,14 @@ app.post("/security/in", async (req, res) => {
       });
       io.emit("inData", { ...inOut._doc });
     } else {
-      //TODO Handle resident
-
-      console.log("Handle resident notification");
+      //! Handle resident
+      io.emit("securityForm", vehicle);
     }
   }
 
   res.send("Succesfull");
 });
+
 app.post("/security/out", async (req, res) => {
   const { vehicle } = req.body;
 
@@ -127,6 +184,56 @@ app.post("/security/out", async (req, res) => {
   console.log(inOut);
   io.emit("outData", { ...inOut._doc, out_time: new Date(Date.now()) });
   res.send("Succesfull");
+});
+
+app.post("/security/form", async (req, res) => {
+  console.log(req.body);
+
+  //TODO Handle notification
+  let message = [
+    {
+      to: pushToken.token,
+      sound: "default",
+      body: "Accept request",
+      data: req.body
+    }
+  ];
+  if (!Expo.isExpoPushToken(pushToken.token)) {
+    console.error(`Push token ${pushToken} is not a valid Expo push token`);
+  }
+  try {
+    let ticketChunk = await expo.sendPushNotificationsAsync(message);
+  } catch (e) {
+    console.log(e.message);
+  }
+});
+
+app.post("/expo/token", (req, res) => {
+  console.log(req.body);
+  pushToken = req.body;
+  res.send("Succesfull");
+});
+
+app.get("/expo/sendMessage", async (req, res) => {
+  console.log(pushToken.token);
+  let token = pushToken.token.value;
+  let message = [
+    {
+      to: token,
+      sound: "default",
+      body: "This is a test notification",
+      data: { withSome: "data" }
+    }
+  ];
+  if (!Expo.isExpoPushToken(token)) {
+    console.error(`Push token ${pushToken} is not a valid Expo push token`);
+  }
+  try {
+    let ticketChunk = await expo.sendPushNotificationsAsync(message);
+  } catch (e) {
+    console.log(e.message);
+  }
+  res.send("/lol");
 });
 
 // Connecting a user through socket
